@@ -10,6 +10,8 @@ import socketio
 
 ROOT = os.path.dirname(__file__)
 BASE_URL = "http://localhost:5000"
+PLAY_VIDEO_FILE = False
+CAMERA_NAME = "HP Wide Vision HD Camera"
 
 
 def create_local_tracks(play_from, decode):
@@ -27,7 +29,7 @@ def create_local_tracks(play_from, decode):
                 )
             elif platform.system() == "Windows":
                 webcam = MediaPlayer(
-                    "video=HP Wide Vision HD Camera", format="dshow", options=options
+                    f"video={CAMERA_NAME}", format="dshow", options=options
                 )
             else:
                 webcam = MediaPlayer("/dev/video0", format="v4l2", options=options)
@@ -44,8 +46,8 @@ def force_codec(pc: RTCPeerConnection, sender, forced_codec):
     )
 
 
-relay = None
-webcam = None
+relay: MediaRelay = None
+webcam: MediaPlayer = None
 sio = socketio.AsyncClient()
 
 
@@ -112,10 +114,21 @@ async def offer(data):
 pcs = set()
 
 
-async def on_shutdown(app):
+async def connect_sio(sio):
+    try:
+        await sio.connect(BASE_URL)
+    except Exception:
+        print("Socket IO Connection failed")
+        exit(-1)
+
+
+async def shutdown():
     # close peer connections
+    await sio.disconnect()
     coros = [pc.close() for pc in pcs]
     await asyncio.gather(*coros)
+    if webcam:
+        webcam.video.stop()
     pcs.clear()
 
 
@@ -123,7 +136,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="WebRTC webcam demo")
     parser.add_argument(
         "--play-from",
-        # default="video.mp4",
+        default="video.mp4" if PLAY_VIDEO_FILE else "",
         help="Read the media from a file and sent it.",
     )
     parser.add_argument(
@@ -152,5 +165,14 @@ if __name__ == "__main__":
     else:
         logging.basicConfig(level=logging.INFO)
 
-    asyncio.get_event_loop().run_until_complete(sio.connect(BASE_URL))
-    asyncio.get_event_loop().run_forever()
+    loop = asyncio.get_event_loop()
+    try:
+        loop.run_until_complete(connect_sio(sio))
+        loop.run_forever()
+    except KeyboardInterrupt:
+        print("Keyboard Interrupt, exiting")
+        pass
+    finally:
+        loop.run_until_complete(shutdown())
+
+        exit(0)
