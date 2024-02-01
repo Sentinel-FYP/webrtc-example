@@ -6,7 +6,7 @@ const os = require("os");
 const networkInterfaces = os.networkInterfaces();
 
 const io = require("socket.io")(httpServer, { cors: true });
-const port = process.env.PORT;
+const port = 5000;
 if (!port) {
   throw new Error("Port is not defined");
 }
@@ -25,7 +25,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", () => {
-    console.log("Disconnect", currentDeviceId);
+    console.log("Disconnected =>", socket.id);
   });
 
   socket.on("offer", (data) => {

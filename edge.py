@@ -1,20 +1,15 @@
 import argparse
 import asyncio
-import json
 import logging
 import os
 import platform
-import aiohttp_cors
-from aiohttp import web
 from aiortc import RTCPeerConnection, RTCSessionDescription
 from aiortc.contrib.media import MediaPlayer, MediaRelay
 from aiortc.rtcrtpsender import RTCRtpSender
+import socketio
 
 ROOT = os.path.dirname(__file__)
-
-
-relay = None
-webcam = None
+BASE_URL = "http://localhost:5000"
 
 
 def create_local_tracks(play_from, decode):
@@ -32,7 +27,7 @@ def create_local_tracks(play_from, decode):
                 )
             elif platform.system() == "Windows":
                 webcam = MediaPlayer(
-                    "video=Integrated Camera", format="dshow", options=options
+                    "video=HP Wide Vision HD Camera", format="dshow", options=options
                 )
             else:
                 webcam = MediaPlayer("/dev/video0", format="v4l2", options=options)
@@ -40,7 +35,7 @@ def create_local_tracks(play_from, decode):
         return None, relay.subscribe(webcam.video)
 
 
-def force_codec(pc, sender, forced_codec):
+def force_codec(pc: RTCPeerConnection, sender, forced_codec):
     kind = forced_codec.split("/")[0]
     codecs = RTCRtpSender.getCapabilities(kind).codecs
     transceiver = next(t for t in pc.getTransceivers() if t.sender == sender)
@@ -49,19 +44,30 @@ def force_codec(pc, sender, forced_codec):
     )
 
 
-async def index(request):
-    content = open(os.path.join(ROOT, "index.html"), "r").read()
-    return web.Response(content_type="text/html", text=content)
+relay = None
+webcam = None
+sio = socketio.AsyncClient()
 
 
-async def javascript(request):
-    content = open(os.path.join(ROOT, "client.js"), "r").read()
-    return web.Response(content_type="application/javascript", text=content)
+@sio.event
+async def connect():
+    print("socket connected to server")
 
 
-async def offer(request):
-    params = await request.json()
-    offer = RTCSessionDescription(sdp=params["sdp"], type=params["type"])
+@sio.event
+async def message(data):
+    print("Message from server:", data)
+
+
+@sio.event
+async def disconnect():
+    print("socket disconnected from server")
+
+
+@sio.on("offer")
+async def offer(data):
+    print("offer received", data)
+    offer = RTCSessionDescription(sdp=data["sdp"], type=data["type"])
 
     pc = RTCPeerConnection()
     pcs.add(pc)
@@ -97,11 +103,9 @@ async def offer(request):
     answer = await pc.createAnswer()
     await pc.setLocalDescription(answer)
 
-    return web.Response(
-        content_type="application/json",
-        text=json.dumps(
-            {"sdp": pc.localDescription.sdp, "type": pc.localDescription.type}
-        ),
+    await sio.emit(
+        "answer",
+        {"sdp": pc.localDescription.sdp, "type": pc.localDescription.type},
     )
 
 
@@ -119,7 +123,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="WebRTC webcam demo")
     parser.add_argument(
         "--play-from",
-        default="video.mp4",
+        # default="video.mp4",
         help="Read the media from a file and sent it.",
     )
     parser.add_argument(
@@ -131,7 +135,7 @@ if __name__ == "__main__":
         action="store_true",
     )
     parser.add_argument(
-        "--port", type=int, default=5000, help="Port for HTTP server (default: 5000)"
+        "--port", type=int, default=6000, help="Port for HTTP server (default: 5000)"
     )
     parser.add_argument("--verbose", "-v", action="count")
     parser.add_argument(
@@ -148,20 +152,5 @@ if __name__ == "__main__":
     else:
         logging.basicConfig(level=logging.INFO)
 
-    app = web.Application()
-    app.on_shutdown.append(on_shutdown)
-    app.router.add_get("/", index)
-    app.router.add_get("/client.js", javascript)
-    app.router.add_post("/offer", offer)
-    cors = aiohttp_cors.setup(
-        app,
-        defaults={
-            "*": aiohttp_cors.ResourceOptions(
-                allow_credentials=True, expose_headers="*", allow_headers="*"
-            )
-        },
-    )
-
-    for route in list(app.router.routes()):
-        cors.add(route)
-    web.run_app(app, port=args.port)
+    asyncio.get_event_loop().run_until_complete(sio.connect(BASE_URL))
+    asyncio.get_event_loop().run_forever()
