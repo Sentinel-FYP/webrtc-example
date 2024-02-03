@@ -1,9 +1,11 @@
 import io from "socket.io-client";
 
-const BASE_URL = "http://192.168.100.8:5000";
+// const BASE_URL = "http://192.168.100.8:5000";
+const BASE_URL = "http://localhost:5000";
+// const BASE_URL = "http://13.51.86.179:5500";
+const DEVICE_ID = "abc";
 let pc = null;
 var socket = io(BASE_URL);
-
 const initializeConnection = () => {
   var config = {
     sdpSemantics: "unified-plan",
@@ -53,9 +55,10 @@ const negotiateWithSocket = () => {
     })
     .then(() => {
       var offer = pc.localDescription;
-      socket.emit("offer", {
+      socket.emit("webrtc:offer", {
         sdp: offer.sdp,
         type: offer.type,
+        deviceId: DEVICE_ID,
       });
     })
     .catch((e) => {
@@ -71,9 +74,10 @@ const closeConnection = () => {
 
 socket.on("connect", () => {
   console.log("Connected =>", socket.id);
+  socket.emit("room:join", { deviceId: DEVICE_ID });
 });
 
-socket.on("answer", (answer) => {
+socket.on("webrtc:answer", (answer) => {
   console.log("received aswer", answer);
   return pc.setRemoteDescription(answer);
 });
