@@ -1,8 +1,8 @@
 import io from "socket.io-client";
 
 // const BASE_URL = "http://192.168.100.8:5000";
-const BASE_URL = "http://localhost:5000";
-// const BASE_URL = "http://13.51.86.179:5500";
+// const BASE_URL = "http://localhost:5000";
+const BASE_URL = "http://13.51.86.179:5500";
 const DEVICE_ID = "abc";
 let pc = null;
 var socket = io(BASE_URL);
