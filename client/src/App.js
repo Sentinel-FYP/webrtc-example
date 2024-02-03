@@ -4,6 +4,7 @@ import {
   closeConnection,
   initializeConnection,
   negotiateWithSocket,
+  CAMERA_NAME,
 } from "./socket";
 
 function App() {
@@ -23,6 +24,7 @@ function App() {
 
   return (
     <div>
+      <h1>Stream testing on camera: {CAMERA_NAME}</h1>
       <button
         id="start"
         onClick={start}

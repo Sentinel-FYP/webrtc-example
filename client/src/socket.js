@@ -4,6 +4,7 @@ import io from "socket.io-client";
 // const BASE_URL = "http://localhost:5000";
 const BASE_URL = "http://13.51.86.179:5500";
 const DEVICE_ID = "abc";
+export const CAMERA_NAME = "test_camera";
 let pc = null;
 var socket = io(BASE_URL);
 const initializeConnection = () => {
@@ -59,6 +60,7 @@ const negotiateWithSocket = () => {
         sdp: offer.sdp,
         type: offer.type,
         deviceId: DEVICE_ID,
+        cameraName: CAMERA_NAME,
       });
     })
     .catch((e) => {
